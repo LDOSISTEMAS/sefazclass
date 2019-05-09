@@ -415,8 +415,8 @@ STATIC FUNCTION XmlToDocNfeEmi( cXmlInput, oDocSped )
       ENDIF
       oDocSped:cAmbiente := XmlNode( cBlocoIde, "tpAmb" )
 
-   cBlocoInfAdic := XmlNode( cXmlInput, "InfAdic" )
-      oDocSped:InfAdicionais := XmlNode( cBlocoInfAdic, "InfCpl" )
+   cBlocoInfAdic := XmlNode( cXmlInput, "infAdic" ) //2019.05.09 Lauro troca correcao tag 
+      oDocSped:InfAdicionais := XmlNode( cBlocoInfAdic, "infCpl" ) //2019.05.09 Lauro troca correcao tag 
 
    cBlocoEmit := XmlNode( cXmlInput, "emit" )
       oDocSped:Emitente:Cnpj              := Transform( DfeEmitente( oDocSped:cChave ), "@R 99.999.999/9999-99" )
