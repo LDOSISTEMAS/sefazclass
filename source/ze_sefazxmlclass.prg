@@ -64,6 +64,7 @@ CREATE CLASS NfeTransporteClass STATIC
    VAR  Uf                INIT ""
    VAR  Placa             INIT ""
    VAR  PlacaUf           INIT ""
+   VAR  TipoFrete         INIT "" //2019.05.09 Lauro inclusao nova variável para buscar tipo do frete
    VAR  Volumes
    METHOD Init()
 
@@ -462,6 +463,8 @@ STATIC FUNCTION XmlToDocNfeEmi( cXmlInput, oDocSped )
          oDocSped:Transporte:Endereco          := Upper( XmlNode( cBlocoTransp, "xEnder" ) )
          oDocSped:Transporte:Cidade            := Upper( XmlNode( cBlocoTransp, "xMun" ) )
          oDocSped:Transporte:Uf                := Upper( XmlNode( cBlocoTransp, "UF" ) )
+		 oDocSPed:Transporte:TipoFrete         := XmlNode( cBlocoTransp, "modFrete" )
+
       cBlocoVol := XmlNode( cBlocoTransporte, "vol" )
          oDocSped:Transporte:Volumes:Qtde        := Val( XmlNode( cBlocoVol, "qVol" ) )
          oDocSped:Transporte:Volumes:Especie     := Upper( XmlNode( cBlocoVol, "esp" ) )
