@@ -1,5 +1,5 @@
 /*
-ZE_SPEDDAMDFE - Documento Auxiliar de Manifesto Eletrônico de Documentos Fiscais
+ZE_SEFAZDAMDFE - Documento Auxiliar de Manifesto Eletrônico de Documentos Fiscais
 Fontes originais do projeto hbnfe em https://github.com/fernandoathayde/hbnfe
 Contrbuição DaMdfe:MSouzaRunner
 */
@@ -7,6 +7,7 @@ Contrbuição DaMdfe:MSouzaRunner
 #include "common.ch"
 #include "hbclass.ch"
 #include "harupdf.ch"
+#include "sefazclass.ch"
 
 #define LAYOUT_LOGO_ESQUERDA        1      /* apenas anotado, mas não usado */
 #define LAYOUT_LOGO_DIREITA         2
@@ -18,7 +19,7 @@ CREATE CLASS hbnfeDaMDFe INHERIT hbNFeDaGeral
    METHOD buscaDadosXML()
    METHOD geraPDF( cFilePDF )
    METHOD novaPagina()
-   METHOD cabecalho()
+   METHOD cabecalho( nQtFolhas )
 
    VAR cTelefoneEmitente INIT ""
    VAR cSiteEmitente     INIT ""
@@ -95,7 +96,7 @@ METHOD ToPDF( cXmlMDFE, cFilePDF, cXmlCancel ) CLASS hbnfeDaMdfe
 
    ::cXML       := cXmlMDFE
    ::cXmlCancel := cXmlCancel
-   ::cChave     := SubStr( ::cXml, At( 'Id=', ::cXml ) + 8, 44 )
+   ::cChave     := Substr( ::cXml, At( 'Id=', ::cXml ) + 8, 44 )
 
    IF !::buscaDadosXML()
       RETURN ::cRetorno
@@ -128,7 +129,7 @@ METHOD buscaDadosXML() CLASS hbnfeDaMdfe
    cText     := XmlNode( ::cXml, "infCTe" )
    DO WHILE "<chCT" $ cText
       cchCT := XmlNode( cText, "chCT" )
-      cText := SubStr( cText, At( "</chCT", cText ) + 7 )
+      cText := Substr( cText, At( "</chCT", cText ) + 7 )
       AAdd( ::ainfCTe, cchCT )
    ENDDO
 
@@ -137,7 +138,7 @@ METHOD buscaDadosXML() CLASS hbnfeDaMdfe
    cText    := cInfNF
    DO WHILE "<infNF" $ cText .AND. "</infNF" $ cText // precaucao inicio/fim
       cNF   := XmlNode( cText, "infNF" )
-      cText := SubStr( cText, At( "</infNF", cText ) + 8 )
+      cText := Substr( cText, At( "</infNF", cText ) + 8 )
       AAdd( ::ainfNF, { ;
          XmlNode( cNF, "CNPJ" ), ;
          XmlNode( cNF, "UF" ), ;
@@ -164,6 +165,12 @@ METHOD buscaDadosXML() CLASS hbnfeDaMdfe
 
 METHOD geraPDF( cFilePDF ) CLASS hbnfeDaMdfe
 
+   LOCAL nQtFolhas, nCont
+
+   nQtFolhas := 1
+   IF Len( ::aInfNfe ) > 11
+      nQtFolhas := Int( ( Len( ::aInfNfe ) + 10 ) / 11 )
+   ENDIF
    // criacao objeto pdf
    ::oPDF := HPDF_New()
    IF ::oPDF == NIL
@@ -182,10 +189,11 @@ METHOD geraPDF( cFilePDF ) CLASS hbnfeDaMdfe
    ::cFonteCode128F := HPDF_GetFont( ::oPDF, ::cFonteCode128, "WinAnsiEncoding" )
 #endif
    // final da criacao e definicao do objeto pdf
-
-   ::nFolha := 1
-   ::novaPagina()
-   ::cabecalho()
+   FOR nCont = 1 TO nQtFolhas
+      ::nFolha := nCont
+      ::novaPagina()
+      ::cabecalho( nQtFolhas )
+   NEXT
    HPDF_SaveToFile( ::oPDF, cFilePDF )
    HPDF_Free( ::oPdf )
 
@@ -229,9 +237,9 @@ METHOD NovaPagina() CLASS hbnfeDaMdfe
 
    RETURN NIL
 
-METHOD cabecalho() CLASS hbnfeDaMdfe
+METHOD cabecalho( nQtFolhas ) CLASS hbnfeDaMdfe
 
-   LOCAL nCont
+   LOCAL nCont, aList, nPos, cURLConsulta := "http:", nItem
 
    // box do logotipo e dados do emitente
 
@@ -260,6 +268,12 @@ METHOD cabecalho() CLASS hbnfeDaMdfe
 #else
    ::DrawBarcode128( ::cChave, 150, ::nLinhaPDF - 242, 0.9, 40 )
 #endif
+   aList := WS_MDFE_QRCODE
+   nPos := hb_ASCan( aList, { | e | e[ 2 ] == "3.00P" } )
+   IF nPos != 0
+      cURLConsulta := aList[ nPos, 3 ]
+   ENDIF
+   ::DrawBarcodeQrcode( 450, ::nLinhaPDF - 185, 1.6, cURLConsulta + "?chMDFe=" + ::cChave + "&" + "tpAmb=" + ::aIde[ "tpAmb" ] )
    ::DrawLine( 020, ::nLinhaPdf - 247, 575, ::nLinhaPdf - 247, ::nLarguraBox )
    ::DrawTexto( 025, ::nLinhaPdf - 248, 575, Nil, "Chave de acesso para consulta de autenticidade no site www.mdfe.fazenda.gov.br", HPDF_TALIGN_LEFT, ::oPDFFontNormal, 12 )
    ::DrawTexto( 040, ::nLinhaPdf - 263, 575, Nil, TRANSF( ::cChave, "@R 99.9999.99.999.999/9999-99-99-999-999.999.999-999.999.999-9" ), HPDF_TALIGN_CENTER, ::oPDFFontBold, 12 )
@@ -267,7 +281,7 @@ METHOD cabecalho() CLASS hbnfeDaMdfe
    // box do No. do Protocolo
    ::DrawTexto( 025, ::nLinhaPdf - 281, 575, Nil, "Protocolo de autorização de uso", HPDF_TALIGN_LEFT, ::oPDFFontNormal, 12 )
    IF ! Empty( ::aProtocolo[ "nProt" ] )
-      ::DrawTexto( 025, ::nLinhaPdf - 296, 575, Nil, ::aProtocolo[ "nProt" ] + ' - ' + SubStr( ::aProtocolo[ "dhRecbto" ], 9, 2 ) + "/" + SubStr( ::aProtocolo[ "dhRecbto" ], 6, 2 ) + "/" + SubStr( ::aProtocolo[ "dhRecbto" ], 1, 4 ) + ' ' + SubStr( ::aProtocolo[ "dhRecbto" ], 12 ), HPDF_TALIGN_CENTER, ::oPDFFontBold, 12 )
+      ::DrawTexto( 025, ::nLinhaPdf - 296, 575, Nil, ::aProtocolo[ "nProt" ] + ' - ' + Substr( ::aProtocolo[ "dhRecbto" ], 9, 2 ) + "/" + Substr( ::aProtocolo[ "dhRecbto" ], 6, 2 ) + "/" + Substr( ::aProtocolo[ "dhRecbto" ], 1, 4 ) + ' ' + Substr( ::aProtocolo[ "dhRecbto" ], 12 ), HPDF_TALIGN_CENTER, ::oPDFFontBold, 12 )
    ELSE
       ::DrawTexto( 025, ::nLinhaPdf - 296, 575, Nil, 'MDFe sem Autorização de Uso da SEFAZ', HPDF_TALIGN_CENTER, ::oPDFFontBold, 12 )
    ENDIF
@@ -290,12 +304,12 @@ METHOD cabecalho() CLASS hbnfeDaMdfe
    // box do fl
    ::DrawLine( 240, ::nLinhaPdf - 355, 240, ::nLinhaPdf - 320, ::nLarguraBox )
    ::DrawTexto( 245, ::nLinhaPdf - 320, 285, Nil, "FL", HPDF_TALIGN_CENTER, ::oPDFFontNormal, 12 )
-   ::DrawTexto( 245, ::nLinhaPdf - 335, 285, Nil, "1/1", HPDF_TALIGN_CENTER, ::oPDFFontBold, 10 )
+   ::DrawTexto( 245, ::nLinhaPdf - 335, 285, Nil, Str( ::nFolha, 1 ) + "/" + Str( nQtFolhas, 1 ), HPDF_TALIGN_CENTER, ::oPDFFontBold, 10 )
 
    // box do data e hora
    ::DrawLine( 285, ::nLinhaPdf - 355, 285, ::nLinhaPdf - 320, ::nLarguraBox )
    ::DrawTexto( 290, ::nLinhaPdf - 320, 440, Nil, "Data e Hora de Emissão", HPDF_TALIGN_CENTER, ::oPDFFontNormal, 12 )
-   ::DrawTexto( 290, ::nLinhaPdf - 335, 440, Nil, SubStr( ::aIde[ "dhEmi" ], 9, 2 ) + "/" + SubStr( ::aIde[ "dhEmi" ], 6, 2 ) + "/" + SubStr( ::aIde[ "dhEmi" ], 1, 4 ) + ' ' + SubStr( ::aIde[ "dhEmi" ], 12 ), HPDF_TALIGN_CENTER, ::oPDFFontBold, 10 )
+   ::DrawTexto( 290, ::nLinhaPdf - 335, 440, Nil, Substr( ::aIde[ "dhEmi" ], 9, 2 ) + "/" + Substr( ::aIde[ "dhEmi" ], 6, 2 ) + "/" + Substr( ::aIde[ "dhEmi" ], 1, 4 ) + ' ' + Substr( ::aIde[ "dhEmi" ], 12 ), HPDF_TALIGN_CENTER, ::oPDFFontBold, 10 )
 
    // UF de carregamento
    ::DrawLine( 440, ::nLinhaPdf - 355, 440, ::nLinhaPdf - 320, ::nLarguraBox )
@@ -392,11 +406,15 @@ METHOD cabecalho() CLASS hbnfeDaMdfe
    ::DrawTexto( 322, ::nLinhaPDF - 618, 550, NIL, "TIPO IDENTIFICAÇÃO", HPDF_TALIGN_LEFT, ::oPDFFontBold, 6 )
    ::DrawTexto( 432, ::nLinhaPDF - 618, 550, NIL, "TIPO IDENTIFICAÇÃO", HPDF_TALIGN_LEFT, ::oPDFFontBold, 6 )
 
-   FOR nCont = 1 TO Min( Len( ::aInfNFe ), 15 )
+   FOR nCont = 1 TO 11
+      nItem := ( ::nFolha - 1 ) * 11 + nCont
+      IF nItem > Len( ::aInfNfe )
+         EXIT
+      ENDIF
       ::DrawTexto( 22, ::nLinhaPDF - 622 - ( nCont * 8 ), 550, NIL, "NF-e", HPDF_TALIGN_LEFT, ::oPDFFontBold, 8 )
-      ::DrawTexto( 42, ::nLinhaPDF - 622 - ( nCont * 8 ), 550, NIL, XmlNode( ::aInfNFe[ nCont ], "chNFe" ), HPDF_TALIGN_LEFT, ::oPDFFontBold, 8 )
-      ::DrawTexto( 322, ::nLinhaPDF - 622 - ( nCont * 8 ), 550, NIL, XmlNode( ::aInfNFe[ nCont ], "tpUnidTransp" ), HPDF_TALIGN_LEFT, ::oPDFFontBold, 8 )
-      ::DrawTexto( 332, ::nLinhaPDF - 622 - ( nCont * 8 ), 550, NIL, XmlNode( ::aInfNFe[ nCont ], "idUnidTransp" ), HPDF_TALIGN_LEFT, ::oPDFFontBold, 8 )
+      ::DrawTexto( 42, ::nLinhaPDF - 622 - ( nCont * 8 ), 550, NIL, XmlNode( ::aInfNFe[ nItem ], "chNFe" ), HPDF_TALIGN_LEFT, ::oPDFFontBold, 8 )
+      ::DrawTexto( 322, ::nLinhaPDF - 622 - ( nCont * 8 ), 550, NIL, XmlNode( ::aInfNFe[ nItem ], "tpUnidTransp" ), HPDF_TALIGN_LEFT, ::oPDFFontBold, 8 )
+      ::DrawTexto( 332, ::nLinhaPDF - 622 - ( nCont * 8 ), 550, NIL, XmlNode( ::aInfNFe[ nItem ], "idUnidTransp" ), HPDF_TALIGN_LEFT, ::oPDFFontBold, 8 )
    NEXT
 
    ::DrawBox( 020, ::nLinhaPdf - 775, 555, 50, ::nLarguraBox )
